@@ -7,6 +7,7 @@ import { UserAccountsModule } from './featores/user-accounts/user-accounts.modul
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SuperAdminAccountsModule } from './featores/superAdmin/superAdmin-platform.module';
+import { BlogAccountsModule } from './featores/bloggers-platform/bloggers-platform.module';
 
 @Module({
   imports: [
@@ -28,8 +29,8 @@ import { SuperAdminAccountsModule } from './featores/superAdmin/superAdmin-platf
     ]),
     configModule,
     UserAccountsModule,
-    //BlogAccountsModule,
     SuperAdminAccountsModule,
+    BlogAccountsModule,
   ],
   controllers: [AppController, AllDeleteController],
   providers: [AppService],

@@ -7,6 +7,9 @@ import { UsersQueryRepository } from '../user-accounts/infrastructure/query/user
 import { UsersRepository } from '../user-accounts/infrastructure/users.repository';
 import { UsersService } from '../user-accounts/application/users.service';
 import { EmailService } from '../notifications/email.service';
+import { PostsRepository } from '../bloggers-platform/infrastructure/posts.repository';
+import { PostsQueryRepository } from '../bloggers-platform/infrastructure/query/posts.query-repository';
+import { PostsService } from '../bloggers-platform/application/posts.service';
 
 @Module({
   imports: [],
@@ -22,6 +25,9 @@ import { EmailService } from '../notifications/email.service';
     UsersService,
     UsersQueryRepository,
     EmailService,
+    PostsRepository,
+    PostsQueryRepository,
+    PostsService,
   ],
   exports: [],
 })

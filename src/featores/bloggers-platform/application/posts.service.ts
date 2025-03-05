@@ -1,45 +1,42 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import {
-  CreatePostDto,
-  updateLikesPostDto,
-  UpdatePostDto,
-} from '../dto/create-post.dto';
-import { Post, PostModelType } from '../domain/posts.entity';
+import { CreatePostDto, UpdatePostDto } from '../dto/create-post.dto';
 import { PostsRepository } from '../infrastructure/posts.repository';
 import { BlogsRepository } from '../infrastructure/blogs.repository';
 import { isValidObjectId } from 'mongoose';
-import { UsersRepository } from '../../user-accounts/infrastructure/users.repository';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class PostsService {
   constructor(
-    @InjectModel(Post.name)
-    private PostModel: PostModelType,
     private postsRepository: PostsRepository,
     private blogsRepository: BlogsRepository,
-    private usersRepository: UsersRepository,
   ) {}
 
   async createPost(dto: CreatePostDto): Promise<string> {
-    const blog = await this.blogsRepository.findOrNotFoundFail(dto.blogId);
+    const blog = await this.blogsRepository.findBlogById(dto.blogId);
 
-    const post = this.PostModel.createInstance({
+    const post = {
+      id: uuidv4(),
       title: dto.title,
+      shortDescription: dto.shortDescription,
       content: dto.content,
       blogId: dto.blogId,
-      shortDescription: dto.shortDescription,
       blogName: blog!.name,
-    });
-    await this.postsRepository.save(post);
-    return post._id.toString();
+      createdAt: new Date().toISOString(),
+    };
+    await this.postsRepository.createPost(post);
+    return post.id;
   }
-  async updatePost(id: string, body: UpdatePostDto): Promise<void> {
-    const post = await this.postsRepository.findOrNotFoundFail(id);
-    post.update(body);
-    await this.postsRepository.save(post);
+  async updatePost(
+    postId: string,
+    body: UpdatePostDto,
+    blogId?: string,
+  ): Promise<void> {
+    const idBlog = blogId || body.blogId;
+    await this.blogsRepository.findBlogById(idBlog!);
+    await this.postsRepository.updatePost(idBlog!, postId, body);
   }
-  async updateLikesStatus(data: updateLikesPostDto): Promise<void> {
+  /*async updateLikesStatus(data: updateLikesPostDto): Promise<void> {
     const foundPost = await this.postsRepository.findOrNotFoundFail(
       data.postId,
     );
@@ -121,13 +118,17 @@ export class PostsService {
     );
 
     return;
-  }
+  }*/
   async deletePost(id: string) {
     if (!isValidObjectId(id)) {
       throw new NotFoundException('post not found');
     }
     const post = await this.postsRepository.findOrNotFoundFail(id);
-    post.makeDeleted();
-    await this.postsRepository.save(post);
+    //  post.makeDeleted();
+    // await this.postsRepository.save(post);
+  }
+  async deletePostForBlog(postId: string, blogId: string) {
+    await this.blogsRepository.findBlogById(blogId);
+    await this.postsRepository.deletePost(postId);
   }
 }

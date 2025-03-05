@@ -13,7 +13,7 @@ export class PostViewDto {
   content: string;
   blogId: string;
   blogName: string;
-  createdAt: Date;
+  createdAt: string;
   extendedLikesInfo: {
     likesCount: number;
     dislikesCount: number;
@@ -27,7 +27,7 @@ export class PostViewDto {
     status?: string,
   ): PostViewDto {
     const dto = new PostViewDto();
-    dto.id = post._id.toString();
+    dto.id = post.id;
     dto.title = post.title;
     dto.shortDescription = post.shortDescription;
     dto.content = post.content;
@@ -35,11 +35,12 @@ export class PostViewDto {
     dto.blogName = post.blogName;
     dto.createdAt = post.createdAt;
     dto.extendedLikesInfo = {
-      likesCount: post.likesInfo.likesCount,
-      dislikesCount: post.likesInfo.dislikesCount,
-      myStatus: status || 'None',
-      newestLikes: newestLikes,
+      likesCount: 0,
+      dislikesCount: 0,
+      myStatus: 'None',
+      newestLikes: [],
     };
+    debugger;
     return dto;
   }
 }

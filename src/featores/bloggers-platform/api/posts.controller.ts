@@ -1,45 +1,18 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { PostsService } from '../application/posts.service';
 import { PostsQueryRepository } from '../infrastructure/query/posts.query-repository';
 import { PostViewDto } from './view-dto/posts.view-dto';
 import { GetPostsQueryParams } from './input-dto/get-posts-query-params.input-dto';
 import { PaginatedViewDto } from '../../../core/dto/base.paginated.view-dto';
-import {
-  CreateCommentForPostInputDto,
-  CreatePostInputDto,
-  UpdateLikeStatusesForPostInputDto,
-  UpdatePostDto,
-} from './input-dto/posts.input-dto';
-import { CommentsQueryRepository } from '../infrastructure/query/comments.query-repository';
-import { GetCommentsQueryParams } from './input-dto/get-comment-query-params.input-dto';
-import { CommentViewDto } from './view-dto/comments.view-dto';
-import { ExtractUserFromRequest } from '../../user-accounts/guards/decorators/param/extract-user-from-request.decorator';
 import { UserContextDto } from '../../user-accounts/guards/dto/user-context.dto';
-import { CommentsService } from '../application/comments.service';
-import { JwtAuthGuard } from '../../user-accounts/guards/bearer/jwt-auth.guard';
 import { JwtOptionalAuthGuard } from '../../user-accounts/guards/bearer/jwt-optional-auth.guard';
 import { ExtractUserIfExistsFromRequest } from '../../user-accounts/guards/decorators/param/extract-user-if-exists-from-request.decorator';
-import { BasicAuthGuard } from '../../user-accounts/guards/basic/basic-auth.guard';
 
 @Controller('posts')
 export class PostsController {
   constructor(
     private postsService: PostsService,
     private postsQueryRepository: PostsQueryRepository,
-    private commentsQueryRepository: CommentsQueryRepository,
-    private commentService: CommentsService,
   ) {}
   @Get()
   @UseGuards(JwtOptionalAuthGuard)
@@ -47,7 +20,6 @@ export class PostsController {
     @Query() query: GetPostsQueryParams,
     @ExtractUserIfExistsFromRequest() user: UserContextDto | null,
   ): Promise<PaginatedViewDto<PostViewDto[]>> {
-    debugger;
     return this.postsQueryRepository.getAll({ query, userId: user?.id });
   }
 
@@ -59,7 +31,7 @@ export class PostsController {
   ): Promise<PostViewDto> {
     return this.postsQueryRepository.findPostById(id, user?.id);
   }
-  @Get('/:postId/comments')
+  /* @Get('/:postId/comments')
   @UseGuards(JwtOptionalAuthGuard)
   async getCommentsForPost(
     @ExtractUserIfExistsFromRequest() user: UserContextDto | null,
@@ -112,6 +84,7 @@ export class PostsController {
       likeStatus: model.likeStatus,
       postId: postId,
     };
+    // @ts-ignore
     return this.postsService.updateLikesStatus(dto);
   }
 
@@ -120,5 +93,5 @@ export class PostsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBlog(@Param('id') id: string): Promise<void> {
     await this.postsService.deletePost(id);
-  }
+  }*/
 }

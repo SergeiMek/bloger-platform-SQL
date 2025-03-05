@@ -13,10 +13,12 @@ import { Injectable } from '@nestjs/common';
 export class BlogIsExistConstraint implements ValidatorConstraintInterface {
   constructor(private readonly blogsRepository: BlogsRepository) {}
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async validate(blogId: string, args: ValidationArguments) {
     return await this.blogsRepository.findBlogOfValidation(blogId);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   defaultMessage(args: ValidationArguments) {
     return 'Post for blog not found'; // Сообщение об ошибке
   }

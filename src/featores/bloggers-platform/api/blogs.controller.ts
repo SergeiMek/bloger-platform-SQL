@@ -1,21 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { BlogViewDto } from './view-dto/blogs.view-dto';
-import {
-  CreateBlogForPostDto,
-  CreateBlogInputDto,
-} from './input-dto/blogs.input-dto';
 import { BlogsService } from '../application/blogs.service';
 import { BlogsQueryRepository } from '../infrastructure/query/blogs.query-repository';
 import { GetBlogsQueryParams } from './input-dto/get-blogs-query-params.input-dto';
@@ -24,7 +8,6 @@ import { PostsQueryRepository } from '../infrastructure/query/posts.query-reposi
 import { GetPostsQueryParams } from './input-dto/get-posts-query-params.input-dto';
 import { PostViewDto } from './view-dto/posts.view-dto';
 import { PostsService } from '../application/posts.service';
-import { BasicAuthGuard } from '../../user-accounts/guards/basic/basic-auth.guard';
 import { JwtOptionalAuthGuard } from '../../user-accounts/guards/bearer/jwt-optional-auth.guard';
 import { ExtractUserIfExistsFromRequest } from '../../user-accounts/guards/decorators/param/extract-user-if-exists-from-request.decorator';
 import { UserContextDto } from '../../user-accounts/guards/dto/user-context.dto';
@@ -62,7 +45,7 @@ export class BlogsController {
       userId: user?.id,
     });
   }
-  @UseGuards(BasicAuthGuard)
+  /*@UseGuards(BasicAuthGuard)
   @Post()
   async createBlog(@Body() body: CreateBlogInputDto): Promise<BlogViewDto> {
     const blogId = await this.blogsService.createBlog(body);
@@ -92,5 +75,5 @@ export class BlogsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBlog(@Param('id') id: string): Promise<void> {
     await this.blogsService.deleteBlog(id);
-  }
+  }*/
 }

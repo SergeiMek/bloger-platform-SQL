@@ -1,24 +1,45 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { isValidObjectId } from 'mongoose';
-import { Post, PostDocument, PostModelType } from '../domain/posts.entity';
-import { NotFoundDomainException } from '../../../core/exceptions/domain-exceptions';
+import { PostDocument } from '../domain/posts.entity';
+import {
+  BadRequestDomainException,
+  NotFoundDomainException,
+} from '../../../core/exceptions/domain-exceptions';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { UpdatePostDto } from '../dto/create-post.dto';
+import { UserDocument } from '../../user-accounts/domain/user.entity';
 
 @Injectable()
 export class PostsRepository {
-  constructor(@InjectModel(Post.name) private PostModel: PostModelType) {}
+  constructor(@InjectDataSource() protected dataSource: DataSource) {}
 
-  /*  async findById(id: string): Promise<UserDocument | null> {
-    return this.UserModel.findOne({
-      _id: id,
-      deletionStatus: { $ne: DeletionStatus.PermanentDeleted },
-    });
-  }*/
-
+  async findPostById(id: string): Promise<UserDocument> {
+    const post = await this.dataSource.query(
+      `SELECT * FROM public."Posts"
+             WHERE "id" = $1`,
+      [id],
+    );
+    if (post.length === 0) {
+      throw new NotFoundException('user not found');
+    } else {
+      return post[0];
+    }
+  }
+  async createPost(dto: PostDocument): Promise<void> {
+    try {
+      await this.dataSource.query(`INSERT INTO public."Posts"(
+        id, "blogId", title, "shortDescription", content, "blogName", "createdAt")
+      VALUES ('${dto.id}', '${dto.blogId}', '${dto.title}', '${dto.shortDescription}', '${dto.content}', '${dto.blogName}','${dto.createdAt}')`);
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
+    }
+  }
   async findOrNotFoundFail(id: string): Promise<PostDocument> {
     if (!isValidObjectId(id)) {
       throw NotFoundDomainException.create('post not found', 'postId');
     }
+    // @ts-ignore
     const post = await this.PostModel.findOne({
       _id: id,
       deletionStatus: {},
@@ -34,6 +55,7 @@ export class PostsRepository {
     postId: string,
     userId: string,
   ): Promise<PostDocument | null> {
+    // @ts-ignore
     const foundUser = await this.PostModel.findOne({
       _id: postId,
       'likesInfo.users.userId': userId,
@@ -44,6 +66,7 @@ export class PostsRepository {
     return foundUser;
   }
   async findUserLikeStatus(postId: string, userId: string) {
+    // @ts-ignore
     const foundUser = await this.PostModel.findOne(
       { _id: postId },
       {
@@ -60,23 +83,42 @@ export class PostsRepository {
     }
     return foundUser.likesInfo.users[0].likeStatus;
   }
-  async save(post: PostDocument) {
-    await post.save();
-  }
-  async updateLikesStatus(
+  async updatePost(
+    blogId: string,
     postId: string,
-    userId: string,
-    likeStatus: string,
+    dto: UpdatePostDto,
   ): Promise<boolean> {
-    const result = await this.PostModel.updateOne(
-      { _id: postId, 'likesInfo.users.userId': userId },
-      {
-        $set: {
-          'likesInfo.users.$.likeStatus': likeStatus,
-        },
-      },
-    );
-
-    return result.matchedCount === 1;
+    await this.findPostById(postId);
+    try {
+      const query = `
+      UPDATE public."Posts"
+      SET "title" = $1, "shortDescription"=$2,"content"=$3,"blogId"=$4
+      WHERE "id" = $5
+    `;
+      const values = [
+        dto.title,
+        dto.shortDescription,
+        dto.content,
+        blogId,
+        postId,
+      ];
+      return await this.dataSource.query(query, values);
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
+  }
+  async deletePost(postId: string) {
+    await this.findPostById(postId);
+    try {
+      const result = await this.dataSource.query(
+        `DELETE FROM public."Posts"
+      WHERE "id"= $1;`,
+        [postId],
+      );
+      debugger;
+      return result[1] === 1;
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
   }
 }

@@ -10,5 +10,9 @@ export class AllDeleteController {
   async dropDB(): Promise<void> {
     await this.dataSource.query(`TRUNCATE TABLE  "Users"`);
     await this.dataSource.query(`TRUNCATE TABLE  "Devise"`);
+    await this.dataSource.query(
+      `DELETE FROM "Posts" WHERE "blogId" IN (SELECT "id" FROM "Blogs")`,
+    );
+    await this.dataSource.query(`DELETE FROM "Blogs"`);
   }
 }

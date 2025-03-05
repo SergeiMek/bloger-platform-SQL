@@ -1,7 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BlogsRepository } from '../infrastructure/blogs.repository';
 import { CreateBlogDto, UpdateBlogDto } from '../dto/create-blog.dto';
-import { isValidObjectId } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -21,18 +20,9 @@ export class BlogsService {
     return blog.id;
   }
   async updateBlog(id: string, body: UpdateBlogDto): Promise<void> {
-    const blog = await this.blogsRepository.findOrNotFoundFail(id);
-    // @ts-ignore
-    blog.update(body);
-    await this.blogsRepository.save(blog);
+    await this.blogsRepository.updateBlog(id, body);
   }
   async deleteBlog(id: string) {
-    if (!isValidObjectId(id)) {
-      throw new NotFoundException('user not found');
-    }
-    const blog = await this.blogsRepository.findOrNotFoundFail(id);
-    // @ts-ignore
-    blog.makeDeleted();
-    await this.blogsRepository.save(blog);
+    await this.blogsRepository.deleteBlog(id);
   }
 }

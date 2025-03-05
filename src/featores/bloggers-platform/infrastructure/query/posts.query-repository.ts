@@ -1,67 +1,56 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, isValidObjectId } from 'mongoose';
-import { Post, PostDocument, PostModelType } from '../../domain/posts.entity';
 import { PostViewDto } from '../../api/view-dto/posts.view-dto';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { getAllPostsDto } from '../../dto/create-post.dto';
 import { PaginatedViewDto } from '../../../../core/dto/base.paginated.view-dto';
 import { BlogsRepository } from '../blogs.repository';
-import { NotFoundDomainException } from '../../../../core/exceptions/domain-exceptions';
-import { PostsRepository } from '../posts.repository';
-import { getAllPostsDto } from '../../dto/create-post.dto';
 
 @Injectable()
 export class PostsQueryRepository {
   constructor(
-    @InjectModel(Post.name)
-    private PostModel: PostModelType,
+    @InjectDataSource() protected dataSource: DataSource,
     private blogsRepository: BlogsRepository,
-    private postsRepository: PostsRepository,
   ) {}
 
-  async getByIdOrNotFoundFail(id: string): Promise<PostDocument> {
-    if (!isValidObjectId(id)) {
-      throw new NotFoundException('post not found');
-    }
-    const post = await this.PostModel.findOne({
-      _id: id,
-    });
-
-    if (!post) {
-      throw new NotFoundException('post not found');
-    }
-    return post;
-  }
-
   async getAll(dto: getAllPostsDto): Promise<PaginatedViewDto<PostViewDto[]>> {
-    const filter: FilterQuery<Post> = {};
-    debugger;
+    const filterConditions: any = [];
+    const filterConditionsParams: any = [];
     if (dto.blogId) {
-      await this.blogsRepository.findOrNotFoundFail(dto.blogId);
-      filter.blogId = dto.blogId;
+      await this.blogsRepository.findBlogById(dto.blogId);
+      filterConditions.push(`"blogId" = $1`);
+      filterConditionsParams.push(dto.blogId);
     }
-    const post = await this.PostModel.find(filter)
-      .sort({ [dto.query.sortBy]: dto.query.sortDirection })
-      .skip(dto.query.calculateSkip())
-      .limit(dto.query.pageSize);
 
-    const totalCount = await this.PostModel.countDocuments(filter);
-
-    /* const items: PostViewDto[] = post.map((post) =>
-      PostViewDto.mapToView(post),
-    );*/
-    /*const newestLikes = post.likesInfo.users
-      .filter((p) => p.likeStatus === 'Like')
-      .sort((a, b) => -a.addedAt.localeCompare(b.addedAt))
-      .map((p) => {
-        return {
-          addedAt: p.addedAt,
-          userId: p.userId,
-          login: p.userLogin,
-        };
-      })
-      .splice(0, 3);*/
-
-    const items: PostViewDto[] = await Promise.all(
+    const whereClause =
+      filterConditions.length > 0 ? `WHERE ${filterConditions[0]}` : '';
+    const sortDirection = dto.query.sortDirection === 'desc' ? 'DESC' : 'ASC';
+    let sortBy = '';
+    if (dto.query.sortBy === 'title' || dto.query.sortBy === 'blogName') {
+      sortBy = dto.query.sortBy;
+    } else {
+      sortBy = 'createdAt';
+    }
+    const offset = dto.query.calculateSkip();
+    const users = await this.dataSource.query(
+      `
+      SELECT * FROM public."Posts"
+      ${whereClause}
+       ORDER BY "${sortBy}" ${sortDirection}
+  LIMIT ${dto.query.pageSize} OFFSET ${offset}
+    `,
+      filterConditionsParams,
+    );
+    const totalCountArray = await this.dataSource.query(
+      `
+      SELECT COUNT(*) FROM public."Posts"
+      ${whereClause}
+    `,
+      filterConditionsParams,
+    );
+    const totalCount = parseInt(totalCountArray[0].count, 10);
+    const items = users.map(PostViewDto.mapToView);
+    /*const items: PostViewDto[] = await Promise.all(
       post.map(async (post) => {
         let status;
         if (dto.userId) {
@@ -83,7 +72,7 @@ export class PostsQueryRepository {
           .splice(0, 3);
         return PostViewDto.mapToView(post, newestLikes, status);
       }),
-    );
+    );*/
 
     return PaginatedViewDto.mapToView({
       items,
@@ -93,20 +82,19 @@ export class PostsQueryRepository {
     });
   }
   async findPostById(id: string, userId?: string): Promise<PostViewDto> {
-    if (!isValidObjectId(id)) {
-      throw NotFoundDomainException.create('post not found');
+    const post = await this.dataSource.query(
+      `SELECT * FROM public."Posts"
+             WHERE "id" = $1`,
+      [id],
+    );
+    if (post.length === 0) {
+      throw new NotFoundException('user not found');
     }
-    const post = await this.PostModel.findOne({
-      _id: id,
-    });
-    if (!post) {
-      throw NotFoundDomainException.create('post not found');
-    }
-    let status;
+    /*let status;
     if (userId) {
       status = await this.postsRepository.findUserLikeStatus(id, userId);
-    }
-    const newestLikes = post.likesInfo.users
+    }*/
+    /*const newestLikes = post.likesInfo.users
       .filter((p) => p.likeStatus === 'Like')
       .sort((a, b) => -a.addedAt.localeCompare(b.addedAt))
       .map((p) => {
@@ -116,8 +104,7 @@ export class PostsQueryRepository {
           login: p.userLogin,
         };
       })
-      .splice(0, 3);
-
-    return PostViewDto.mapToView(post, newestLikes, status);
+      .splice(0, 3);*/
+    return PostViewDto.mapToView(post[0], [], 'None');
   }
 }
