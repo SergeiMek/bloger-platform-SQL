@@ -5,12 +5,15 @@ import { DataSource } from 'typeorm';
 import { getAllPostsDto } from '../../dto/create-post.dto';
 import { PaginatedViewDto } from '../../../../core/dto/base.paginated.view-dto';
 import { BlogsRepository } from '../blogs.repository';
+import { PostsRepository } from '../posts.repository';
+import { BadRequestDomainException } from '../../../../core/exceptions/domain-exceptions';
 
 @Injectable()
 export class PostsQueryRepository {
   constructor(
     @InjectDataSource() protected dataSource: DataSource,
     private blogsRepository: BlogsRepository,
+    private postsRepository: PostsRepository,
   ) {}
 
   async getAll(dto: getAllPostsDto): Promise<PaginatedViewDto<PostViewDto[]>> {
@@ -32,9 +35,12 @@ export class PostsQueryRepository {
       sortBy = 'createdAt';
     }
     const offset = dto.query.calculateSkip();
-    const users = await this.dataSource.query(
+    const posts = await this.dataSource.query(
       `
-      SELECT * FROM public."Posts"
+       SELECT c.* , ( SELECT COUNT(*) FROM public."LikesForPosts"
+      WHERE "postId" = c."id" AND "likeStatus" = 'Like') as "likesCount" ,
+  ( SELECT COUNT(*) FROM public."LikesForPosts"
+      WHERE "postId" = c."id" AND "likeStatus" = 'Dislike') as "dislikesCount"  FROM public."Posts" c
       ${whereClause}
        ORDER BY "${sortBy}" ${sortDirection}
   LIMIT ${dto.query.pageSize} OFFSET ${offset}
@@ -48,18 +54,19 @@ export class PostsQueryRepository {
     `,
       filterConditionsParams,
     );
+
     const totalCount = parseInt(totalCountArray[0].count, 10);
-    const items = users.map(PostViewDto.mapToView);
-    /*const items: PostViewDto[] = await Promise.all(
-      post.map(async (post) => {
+    const items: PostViewDto[] = await Promise.all(
+      posts.map(async (post) => {
         let status;
+        const newestLikes = await this.postsRepository.getNewestLike(post.id);
         if (dto.userId) {
           status = await this.postsRepository.findUserLikeStatus(
-            post._id.toString(),
+            post.id,
             dto.userId,
           );
         }
-        const newestLikes = post.likesInfo.users
+        /*const newestLikes = post.likesInfo.users
           .filter((p) => p.likeStatus === 'Like')
           .sort((a, b) => -a.addedAt.localeCompare(b.addedAt))
           .map((p) => {
@@ -69,10 +76,11 @@ export class PostsQueryRepository {
               login: p.userLogin,
             };
           })
-          .splice(0, 3);
+          .splice(0, 3);*/
+
         return PostViewDto.mapToView(post, newestLikes, status);
       }),
-    );*/
+    );
 
     return PaginatedViewDto.mapToView({
       items,
@@ -82,29 +90,30 @@ export class PostsQueryRepository {
     });
   }
   async findPostById(id: string, userId?: string): Promise<PostViewDto> {
-    const post = await this.dataSource.query(
-      `SELECT * FROM public."Posts"
-             WHERE "id" = $1`,
-      [id],
-    );
-    if (post.length === 0) {
-      throw new NotFoundException('user not found');
+    try {
+      const post = await this.dataSource.query(
+        `
+  SELECT c.*, 
+    (SELECT COUNT(*) FROM public."LikesForPosts" WHERE "postId" = c."id" AND "likeStatus" = 'Like') AS "likesCount",
+    (SELECT COUNT(*) FROM public."LikesForPosts" WHERE "postId" = c."id" AND "likeStatus" = 'Dislike') AS "dislikesCount"  
+  FROM public."Posts" c
+  WHERE "id" = $1
+  `,
+        [id],
+      );
+      if (post.length === 0) {
+        throw new NotFoundException('user not found');
+      }
+      let status;
+      //let likes;
+      const newestLikes = await this.postsRepository.getNewestLike(id);
+      if (userId) {
+        status = await this.postsRepository.findUserLikeStatus(id, userId);
+      }
+      return PostViewDto.mapToView(post[0], newestLikes, status);
+    } catch (error) {
+      //throw BadRequestDomainException.create(error);
+      throw new NotFoundException('post not found');
     }
-    /*let status;
-    if (userId) {
-      status = await this.postsRepository.findUserLikeStatus(id, userId);
-    }*/
-    /*const newestLikes = post.likesInfo.users
-      .filter((p) => p.likeStatus === 'Like')
-      .sort((a, b) => -a.addedAt.localeCompare(b.addedAt))
-      .map((p) => {
-        return {
-          addedAt: p.addedAt,
-          userId: p.userId,
-          login: p.userLogin,
-        };
-      })
-      .splice(0, 3);*/
-    return PostViewDto.mapToView(post[0], [], 'None');
   }
 }

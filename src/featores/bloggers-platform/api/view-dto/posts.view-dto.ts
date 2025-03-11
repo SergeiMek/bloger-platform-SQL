@@ -1,4 +1,4 @@
-import { PostDocument } from '../../domain/posts.entity';
+import { PostDocument, PostDocumentSQL } from '../../domain/posts.entity';
 
 class usersForLikes {
   addedAt: string;
@@ -22,7 +22,7 @@ export class PostViewDto {
   };
 
   static mapToView(
-    post: PostDocument,
+    post: PostDocumentSQL,
     newestLikes: Array<usersForLikes>,
     status?: string,
   ): PostViewDto {
@@ -35,10 +35,10 @@ export class PostViewDto {
     dto.blogName = post.blogName;
     dto.createdAt = post.createdAt;
     dto.extendedLikesInfo = {
-      likesCount: 0,
-      dislikesCount: 0,
-      myStatus: 'None',
-      newestLikes: [],
+      likesCount: Number(post.likesCount),
+      dislikesCount: Number(post.dislikesCount),
+      myStatus: status || 'None',
+      newestLikes: newestLikes || [],
     };
     debugger;
     return dto;

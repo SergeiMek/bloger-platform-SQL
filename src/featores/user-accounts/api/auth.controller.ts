@@ -37,7 +37,7 @@ import { ResendConfirmationCodeCommand } from '../use-cases/resendConfirmationUs
 import { RefreshTokenCommand } from '../use-cases/refreshTokenUseCase';
 
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
+//@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(
     private usersService: UsersService,

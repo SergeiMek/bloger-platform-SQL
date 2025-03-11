@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { CommentsService } from '../application/comments.service';
 import { CommentsQueryRepository } from '../infrastructure/query/comments.query-repository';
-import { CommentViewDto } from './view-dto/comments.view-dto';
 import {
   UpdateCommentInputDto,
   UpdateLikeStatusInputDto,
@@ -19,8 +18,9 @@ import {
 import { JwtAuthGuard } from '../../user-accounts/guards/bearer/jwt-auth.guard';
 import { ExtractUserFromRequest } from '../../user-accounts/guards/decorators/param/extract-user-from-request.decorator';
 import { UserContextDto } from '../../user-accounts/guards/dto/user-context.dto';
-import { JwtOptionalAuthGuard } from '../../user-accounts/guards/bearer/jwt-optional-auth.guard';
 import { ExtractUserIfExistsFromRequest } from '../../user-accounts/guards/decorators/param/extract-user-if-exists-from-request.decorator';
+import { JwtOptionalAuthGuard } from '../../user-accounts/guards/bearer/jwt-optional-auth.guard';
+import { CommentViewDto } from './view-dto/comments.view-dto';
 
 @Controller('comments')
 export class CommentsController {
@@ -68,7 +68,7 @@ export class CommentsController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteBlog(
+  deleteComment(
     @Param('id') id: string,
     @ExtractUserFromRequest() user: UserContextDto,
   ): Promise<void> {

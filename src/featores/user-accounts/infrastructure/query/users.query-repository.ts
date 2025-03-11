@@ -48,7 +48,6 @@ export class UsersQueryRepository {
       sortBy = 'createdAt';
     }
     const offset = query.calculateSkip();
-    debugger;
     const users = await this.dataSource.query(`
       SELECT * FROM public."Users"
       ${whereClause}

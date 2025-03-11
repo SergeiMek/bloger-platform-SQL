@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { isValidObjectId } from 'mongoose';
 import { PostDocument } from '../domain/posts.entity';
 import {
   BadRequestDomainException,
@@ -9,6 +8,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { UpdatePostDto } from '../dto/create-post.dto';
 import { UserDocument } from '../../user-accounts/domain/user.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class PostsRepository {
@@ -35,53 +35,78 @@ export class PostsRepository {
       throw BadRequestDomainException.create(error);
     }
   }
-  async findOrNotFoundFail(id: string): Promise<PostDocument> {
-    if (!isValidObjectId(id)) {
-      throw NotFoundDomainException.create('post not found', 'postId');
-    }
-    // @ts-ignore
-    const post = await this.PostModel.findOne({
-      _id: id,
-      deletionStatus: {},
-    });
 
-    if (!post) {
-      throw NotFoundDomainException.create('post not found', 'postId');
-    }
-
-    return post;
-  }
   async findUserInLikesInfo(
     postId: string,
     userId: string,
   ): Promise<PostDocument | null> {
-    // @ts-ignore
-    const foundUser = await this.PostModel.findOne({
-      _id: postId,
-      'likesInfo.users.userId': userId,
-    });
-    if (!foundUser) {
-      return null;
+    try {
+      const foundUser = await this.dataSource.query(`SELECT * 
+          FROM public."LikesForPosts"
+          WHERE "postId" = '${postId}' AND "userId" = '${userId}'`);
+      return foundUser[0];
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
     }
-    return foundUser;
   }
-  async findUserLikeStatus(postId: string, userId: string) {
-    // @ts-ignore
-    const foundUser = await this.PostModel.findOne(
-      { _id: postId },
-      {
-        'likesInfo.users': {
-          $filter: {
-            input: '$likesInfo.users',
-            cond: { $eq: ['$$this.userId', userId] },
-          },
-        },
-      },
-    );
-    if (!foundUser || foundUser.likesInfo.users.length === 0) {
-      return null;
+  async findUserLikeStatus(
+    postId: string,
+    userId: string,
+  ): Promise<PostDocument | null> {
+    try {
+      const foundUser = await this.dataSource.query(`SELECT * 
+          FROM "LikesForPosts"
+          WHERE "postId" = '${postId}' AND "userId" = '${userId}'`);
+      return foundUser[0] ? foundUser[0].likeStatus : 'None';
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
     }
-    return foundUser.likesInfo.users[0].likeStatus;
+  }
+  async getNewestLike(postId: string) {
+    try {
+      return await this.dataSource
+        .query(`SELECT "addedAt", "userId", "userLogin" AS "login"
+          FROM public."LikesForPosts"
+          WHERE "postId" = '${postId}' AND "likeStatus" = 'Like'
+           ORDER BY "addedAt" DESC
+           LIMIT 3
+          `);
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
+    }
+  }
+  async pushUserInLikesInfo(
+    postId: string,
+    userId: string,
+    likeStatus: string,
+    userLogin: string,
+  ): Promise<void> {
+    try {
+      const id = uuidv4();
+      const data = new Date().toISOString();
+      await this.dataSource.query(`INSERT INTO public."LikesForPosts"(
+        id, "postId", "addedAt", "userId", "userLogin", "likeStatus")
+      VALUES ('${id}', '${postId}', '${data}', '${userId}', '${userLogin}','${likeStatus}')`);
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
+    }
+  }
+
+  async updateLikesStatus(
+    postId: string,
+    userId: string,
+    likeStatus: string,
+  ): Promise<void> {
+    try {
+      const query = `
+      UPDATE public."LikesForPosts"
+      SET "likeStatus" = '${likeStatus}'
+       WHERE "postId" = '${postId}' AND "userId" = '${userId}'
+    `;
+      return await this.dataSource.query(query);
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
   }
   async updatePost(
     blogId: string,

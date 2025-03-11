@@ -1,6 +1,6 @@
 //dto для боди при создании юзера. Сюда могут быть добавлены декораторы swagger
 
-import { IsEnum, IsString, Length } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, Length } from 'class-validator';
 
 export enum likeStatusEnum {
   NONE = 'None',
@@ -19,6 +19,8 @@ export class UpdateCommentInputDto {
   content: string;
 }
 export class UpdateLikeStatusInputDto {
+  @IsString()
+  @IsNotEmpty()
   @IsEnum(likeStatusEnum)
   likeStatus: 'None' | 'Like' | 'Dislike';
 }

@@ -1,125 +1,139 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId } from 'mongoose';
+import { CommentDocument } from '../domain/comments.entity';
 import {
-  Comment,
-  CommentDocument,
-  CommentModelType,
-} from '../domain/comments.entity';
-import { NotFoundDomainException } from '../../../core/exceptions/domain-exceptions';
+  BadRequestDomainException,
+  NotFoundDomainException,
+} from '../../../core/exceptions/domain-exceptions';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class CommentsRepository {
-  constructor(
-    @InjectModel(Comment.name) private CommentModel: CommentModelType,
-  ) {}
+  constructor(@InjectDataSource() protected dataSource: DataSource) {}
 
-  /*  async findById(id: string): Promise<UserDocument | null> {
-    return this.UserModel.findOne({
-      _id: id,
-      deletionStatus: { $ne: DeletionStatus.PermanentDeleted },
-    });
-  }*/
-
-  async findOrNotFoundFail(id: string): Promise<CommentDocument> {
-    if (!isValidObjectId(id)) {
-      throw NotFoundDomainException.create('comment not found', 'commentId');
+  async createComment(dto: CommentDocument): Promise<void> {
+    try {
+      await this.dataSource.query(`INSERT INTO public."Comments"(
+        id, "userId", "userLogin", "createdAt", "postId","content")
+      VALUES ('${dto.id}', '${dto.userId}', '${dto.userLogin}', '${dto.createdAt}', '${dto.postId}','${dto.content}')`);
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
     }
-    const comment = await this.CommentModel.findOne({
-      _id: id,
-      deletionStatus: {},
-    });
+  }
+
+  async findUserLikeStatus(commentId: string, userId: string): Promise<string> {
+    try {
+      const result = await this.dataSource.query(`SELECT * 
+          FROM public."LikesForComments"
+          WHERE "commentId" = '${commentId}' AND "userId" = '${userId}'`);
+      return result[0] ? result[0].likeStatus : 'None';
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
+    }
+  }
+
+  /* async findLikeById(id: string): Promise<CommentDocument> {
+    const comment = await this.dataSource.query(
+      `SELECT * FROM public."Comments"
+             WHERE "id" = $1`,
+      [id],
+    );
 
     if (!comment) {
       throw NotFoundDomainException.create('comment not found', 'commentId');
     }
 
-    return comment;
-  }
-  async save(comment: CommentDocument) {
-    await comment.save();
-  }
+    return comment[0];
+  }*/
+
   async findUserInLikeInfo(
     commentId: string,
     userId: string,
   ): Promise<CommentDocument | null> {
-    const foundUser = await this.CommentModel.findOne({
-      _id: commentId,
-      'likesInfo.users.userId': userId,
-    });
-    if (!foundUser) {
-      return null;
+    try {
+      const foundUser = await this.dataSource.query(`SELECT * 
+          FROM public."LikesForComments"
+          WHERE "commentId" = '${commentId}' AND "userId" = '${userId}'`);
+      return foundUser[0];
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
     }
-    return foundUser;
   }
+
   async pushUserInLikesInfo(
     commentId: string,
     userId: string,
     likeStatus: string,
-  ): Promise<boolean> {
-    const result = await this.CommentModel.updateOne(
-      { _id: commentId },
-      {
-        $push: {
-          'likesInfo.users': {
-            userId,
-            likeStatus,
-          },
-        },
-      },
-    );
-    return result.matchedCount === 1;
-  }
-  async updateLikesCount(
-    commentId: string,
-    likesCount: number,
-    dislikeCount: number,
-  ): Promise<boolean> {
-    const result = await this.CommentModel.updateOne(
-      { _id: commentId },
-      {
-        $set: {
-          'likesInfo.likesCount': likesCount,
-          'likesInfo.dislikesCount': dislikeCount,
-        },
-      },
-    );
-    return result.matchedCount === 1;
-  }
-  async findUserLikeStatus(
-    commentId: string,
-    userId: string,
-  ): Promise<string | null> {
-    const foundUser = await this.CommentModel.findOne(
-      { _id: commentId },
-      {
-        'likesInfo.users': {
-          $filter: {
-            input: '$likesInfo.users',
-            cond: { $eq: ['$$this.userId', userId.toString()] },
-          },
-        },
-      },
-    ).lean();
-    if (!foundUser || foundUser.likesInfo.users.length === 0) {
-      return null;
+    userLogin: string,
+  ): Promise<void> {
+    try {
+      const id = uuidv4();
+      const data = new Date().toISOString();
+      await this.dataSource.query(`INSERT INTO public."LikesForComments"(
+        id, "commentId", "addedAt", "userId", "userLogin", "likeStatus")
+      VALUES ('${id}', '${commentId}', '${data}', '${userId}', '${userLogin}','${likeStatus}')`);
+    } catch (error: any) {
+      throw BadRequestDomainException.create(error);
     }
-
-    return foundUser.likesInfo.users[0].likeStatus;
   }
+
   async updateLikesStatus(
     commentId: string,
     userId: string,
     likeStatus: string,
-  ): Promise<boolean> {
-    const result = await this.CommentModel.updateOne(
-      { _id: commentId, 'likesInfo.users.userId': userId },
-      {
-        $set: {
-          'likesInfo.users.$.likeStatus': likeStatus,
-        },
-      },
+  ): Promise<void> {
+    try {
+      const query = `
+      UPDATE public."LikesForComments"
+      SET "likeStatus" = '${likeStatus}'
+       WHERE "commentId" = '${commentId}' AND "userId" = '${userId}'
+    `;
+      return await this.dataSource.query(query);
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
+  }
+
+  async updateComment(commentId: string, content: string): Promise<void> {
+    try {
+      const query = `
+      UPDATE public."Comments"
+      SET "content" = $1
+       WHERE "id" = $2
+    `;
+      return await this.dataSource.query(query, [content, commentId]);
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
+  }
+  async findCommentById(id: string): Promise<CommentDocument> {
+    const comment = await this.dataSource.query(
+      `SELECT * FROM public."Comments"
+             WHERE "id" = $1`,
+      [id],
     );
-    return result.matchedCount === 1;
+
+    if (comment.length === 0) {
+      throw NotFoundDomainException.create('comment not found', 'commentId');
+    }
+
+    return comment[0];
+  }
+  async deleteCommentById(id: string): Promise<any> {
+    try {
+      await this.dataSource.query(
+        `DELETE FROM public."LikesForComments"
+      WHERE "commentId"= $1;`,
+        [id],
+      );
+      await this.dataSource.query(
+        `DELETE FROM public."Comments"
+      WHERE "id"= $1;`,
+        [id],
+      );
+    } catch (error) {
+      throw NotFoundDomainException.create(error);
+    }
   }
 }

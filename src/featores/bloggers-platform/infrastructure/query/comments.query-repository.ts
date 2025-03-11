@@ -1,65 +1,78 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, isValidObjectId } from 'mongoose';
+import { Injectable } from '@nestjs/common';
 import { CommentViewDto } from '../../api/view-dto/comments.view-dto';
-import { Comment, CommentModelType } from '../../domain/comments.entity';
-import { PaginatedViewDto } from '../../../../core/dto/base.paginated.view-dto';
-import { GetCommentsQueryParams } from '../../api/input-dto/get-comment-query-params.input-dto';
-import { PostsRepository } from '../posts.repository';
 import { NotFoundDomainException } from '../../../../core/exceptions/domain-exceptions';
 import { CommentsRepository } from '../comments.repository';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { GetCommentsQueryParams } from '../../api/input-dto/get-comment-query-params.input-dto';
+import { PaginatedViewDto } from '../../../../core/dto/base.paginated.view-dto';
+import { PostsRepository } from '../posts.repository';
 
 @Injectable()
 export class CommentsQueryRepository {
   constructor(
-    @InjectModel(Comment.name)
-    private CommentModel: CommentModelType,
+    @InjectDataSource() protected dataSource: DataSource,
     private postsRepository: PostsRepository,
     private commentsRepository: CommentsRepository,
   ) {}
-
-  async getByIdOrNotFoundFail(id: string): Promise<CommentViewDto> {
-    const comment = await this.CommentModel.findOne({
-      _id: id,
-    });
-
-    if (!comment) {
-      throw new NotFoundException('blog not found');
-    }
-
-    return CommentViewDto.mapToView(comment);
-  }
 
   async getAll(
     query: GetCommentsQueryParams,
     postId?: string,
     userId?: string,
   ): Promise<PaginatedViewDto<CommentViewDto[]>> {
-    const filter: FilterQuery<Comment> = {};
+    const filterConditions: any = [];
+    const filterConditionsParams: any = [];
     if (postId) {
-      await this.postsRepository.findOrNotFoundFail(postId);
-      filter.postId = postId;
+      await this.postsRepository.findPostById(postId);
+      filterConditions.push(`"postId" = $1`);
+      filterConditionsParams.push(postId);
     }
 
-    const comment = await this.CommentModel.find(filter)
-      .sort({ [query.sortBy]: query.sortDirection })
-      .skip(query.calculateSkip())
-      .limit(query.pageSize);
-
-    const totalCount = await this.CommentModel.countDocuments(filter);
+    const whereClause =
+      filterConditions.length > 0 ? `WHERE ${filterConditions[0]}` : '';
+    const sortDirection = query.sortDirection === 'desc' ? 'DESC' : 'ASC';
+    /*let sortBy = '';
+    if (dto.query.sortBy === 'title' || dto.query.sortBy === 'blogName') {
+      sortBy = dto.query.sortBy;
+    } else {
+      sortBy = 'createdAt';
+    }*/
+    const offset = query.calculateSkip();
+    const comments = await this.dataSource.query(
+      `
+      SELECT c.* , ( SELECT COUNT(*) FROM public."LikesForComments"
+      WHERE "commentId" = c."id" AND "likeStatus" = 'Like') as "likesCount" ,
+  ( SELECT COUNT(*) FROM public."LikesForComments"
+      WHERE "commentId" = c."id" AND "likeStatus" = 'Dislike') as "dislikesCount"  FROM public."Comments" c
+      ${whereClause}
+       ORDER BY "createdAt" ${sortDirection}
+  LIMIT ${query.pageSize} OFFSET ${offset}
+    `,
+      filterConditionsParams,
+    );
+    const totalCountArray = await this.dataSource.query(
+      `
+      SELECT COUNT(*) FROM public."Comments"
+      ${whereClause}
+    `,
+      filterConditionsParams,
+    );
+    const totalCount = parseInt(totalCountArray[0].count, 10);
+    debugger;
     const items: CommentViewDto[] = await Promise.all(
-      comment.map(async (comment) => {
+      comments.map(async (comment) => {
         let status;
         if (userId) {
           status = await this.commentsRepository.findUserLikeStatus(
-            comment._id.toString(),
+            comment.id,
             userId,
           );
         }
         return CommentViewDto.mapToView(comment, status);
       }),
     );
-
+    debugger;
     return PaginatedViewDto.mapToView({
       items,
       totalCount,
@@ -68,20 +81,36 @@ export class CommentsQueryRepository {
     });
   }
   async findCommentById(id: string, userId?: string): Promise<CommentViewDto> {
-    if (!isValidObjectId(id)) {
-      throw NotFoundDomainException.create('comment not found', 'commentId');
-    }
     let likeStatus;
     if (userId) {
       likeStatus = await this.commentsRepository.findUserLikeStatus(id, userId);
     }
 
-    const comment = await this.CommentModel.findOne({
-      _id: id,
-    });
-    if (!comment) {
+    const comment = await this.dataSource.query(
+      `SELECT * FROM public."Comments"
+             WHERE "id" = $1`,
+      [id],
+    );
+    if (comment.length === 0) {
       throw NotFoundDomainException.create('comment not found', 'commentId');
     }
-    return CommentViewDto.mapToView(comment, likeStatus);
+    const likesCount = await this.dataSource.query(
+      `
+      SELECT COUNT(*) FROM public."LikesForComments"
+      WHERE "commentId" = '${id}' AND "likeStatus" = 'Like'
+  `,
+    );
+    const dislikesCount = await this.dataSource.query(
+      `
+      SELECT COUNT(*) FROM public."LikesForComments"
+   WHERE "commentId" = '${id}' AND "likeStatus" = 'Dislike'
+    `,
+    );
+    const commentLike = {
+      ...comment[0],
+      likesCount: parseInt(likesCount[0].count, 10),
+      dislikesCount: parseInt(dislikesCount[0].count, 10),
+    };
+    return CommentViewDto.mapToView(commentLike, likeStatus);
   }
 }

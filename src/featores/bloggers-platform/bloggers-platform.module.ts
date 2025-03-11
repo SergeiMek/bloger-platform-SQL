@@ -9,6 +9,10 @@ import { PostsService } from './application/posts.service';
 import { UsersRepository } from '../user-accounts/infrastructure/users.repository';
 import { BlogIsExistConstraint } from './validate/blogId-is-exist.decorator';
 import { PostsController } from './api/posts.controller';
+import { CommentsService } from './application/comments.service';
+import { CommentsQueryRepository } from './infrastructure/query/comments.query-repository';
+import { CommentsRepository } from './infrastructure/comments.repository';
+import { CommentsController } from './api/comments.controller';
 
 @Module({
   imports: [
@@ -17,7 +21,7 @@ import { PostsController } from './api/posts.controller';
       // { name: User.name, schema: UserSchema },
     ]),*/
   ],
-  controllers: [BlogsController, PostsController],
+  controllers: [BlogsController, PostsController, CommentsController],
   providers: [
     BlogsService,
     BlogsQueryRepository,
@@ -25,9 +29,9 @@ import { PostsController } from './api/posts.controller';
     PostsRepository,
     PostsQueryRepository,
     PostsService,
-    //CommentsService,
-    //CommentsRepository,
-    //CommentsQueryRepository,
+    CommentsService,
+    CommentsRepository,
+    CommentsQueryRepository,
     UsersRepository,
     BlogIsExistConstraint,
   ],
